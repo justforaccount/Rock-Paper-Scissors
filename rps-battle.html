@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>石头剪刀布 · 大乱斗</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --rock-color: #e8735a;
+    --paper-color: #5ab4e8;
+    --scissors-color: #7ade8a;
+    --bg: #0d0d14;
+    --panel: #161622;
+    --border: #2a2a40;
+    --text: #e8e8f0;
+    --muted: #6b6b8a;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans SC', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+    overflow-x: hidden;
+  }
+
+  h1 {
+    font-size: clamp(1.4rem, 4vw, 2rem);
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, var(--rock-color), var(--scissors-color), var(--paper-color));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .scoreboard {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .score-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 8px 16px;
+    min-width: 100px;
+    justify-content: space-between;
+  }
+
+  .score-icon { font-size: 1.4rem; }
+  .score-name { font-size: 0.75rem; color: var(--muted); }
+  .score-count {
+    font-size: 1.5rem;
+    font-weight: 900;
+    transition: transform 0.15s;
+  }
+  .score-count.bump { transform: scale(1.3); }
+
+  #rock-card   { border-color: var(--rock-color);     box-shadow: 0 0 12px rgba(232,115,90,0.15); }
+  #paper-card  { border-color: var(--paper-color);    box-shadow: 0 0 12px rgba(90,180,232,0.15); }
+  #scissors-card{ border-color: var(--scissors-color); box-shadow: 0 0 12px rgba(122,222,138,0.15); }
+
+  #rock-count     { color: var(--rock-color); }
+  #paper-count    { color: var(--paper-color); }
+  #scissors-count { color: var(--scissors-color); }
+
+  canvas {
+    border: 2px solid var(--border);
+    border-radius: 16px;
+    background: var(--panel);
+    display: block;
+    box-shadow: 0 0 40px rgba(0,0,0,0.6);
+  }
+
+  .controls {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  button {
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    padding: 10px 24px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    letter-spacing: 0.04em;
+  }
+  button:hover { opacity: 0.85; transform: translateY(-1px); }
+  button:active { transform: translateY(0); }
+
+  #btn-restart {
+    background: linear-gradient(135deg, var(--rock-color), #c05a44);
+    color: #fff;
+  }
+  #btn-quit {
+    background: var(--panel);
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  #btn-quit:hover { color: var(--text); }
+
+  /* overlay */
+  #overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(13,13,20,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    backdrop-filter: blur(6px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s;
+  }
+  #overlay.show { opacity: 1; pointer-events: all; }
+
+  .overlay-box {
+    background: var(--panel);
+    border: 2px solid var(--border);
+    border-radius: 24px;
+    padding: 40px 48px;
+    text-align: center;
+    max-width: 340px;
+  }
+  .overlay-icon { font-size: 4rem; margin-bottom: 12px; }
+  .overlay-title {
+    font-size: 1.6rem;
+    font-weight: 900;
+    margin-bottom: 8px;
+    letter-spacing: 0.06em;
+  }
+  .overlay-sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 24px; }
+  .overlay-btns { display: flex; gap: 12px; justify-content: center; }
+
+  #quit-confirm {
+    position: fixed;
+    inset: 0;
+    background: rgba(13,13,20,0.9);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    backdrop-filter: blur(8px);
+  }
+  #quit-confirm.show { display: flex; }
+  .quit-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px 40px;
+    text-align: center;
+  }
+  .quit-box p { margin-bottom: 20px; font-size: 1rem; color: var(--muted); }
+  .quit-box h3 { font-size: 1.2rem; margin-bottom: 8px; }
+
+  .speed-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  input[type=range] {
+    accent-color: var(--scissors-color);
+    width: 120px;
+  }
+</style>
+</head>
+<body>
+
+<h1>🪨 石头剪刀布 · 大乱斗 ✂️</h1>
+
+<div class="scoreboard">
+  <div class="score-card" id="rock-card">
+    <div class="score-icon">🪨</div>
+    <div>
+      <div class="score-name">石头</div>
+      <div class="score-count" id="rock-count">0</div>
+    </div>
+  </div>
+  <div class="score-card" id="paper-card">
+    <div class="score-icon">📄</div>
+    <div>
+      <div class="score-name">布</div>
+      <div class="score-count" id="paper-count">0</div>
+    </div>
+  </div>
+  <div class="score-card" id="scissors-card">
+    <div class="score-icon">✂️</div>
+    <div>
+      <div class="score-name">剪刀</div>
+      <div class="score-count" id="scissors-count">0</div>
+    </div>
+  </div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<div class="controls">
+  <div class="speed-row">
+    <span>速度</span>
+    <input type="range" id="speed-slider" min="0.5" max="3" step="0.1" value="1.2">
+    <span id="speed-label">1.2×</span>
+  </div>
+  <button id="btn-restart">🔄 重新开始</button>
+  <button id="btn-quit">退出</button>
+</div>
+
+<!-- Win overlay -->
+<div id="overlay">
+  <div class="overlay-box">
+    <div class="overlay-icon" id="win-icon"></div>
+    <div class="overlay-title" id="win-title"></div>
+    <div class="overlay-sub" id="win-sub"></div>
+    <div class="overlay-btns">
+      <button id="btn-play-again" style="background:linear-gradient(135deg,#7ade8a,#4ab85a);color:#fff">再来一局</button>
+      <button id="btn-ov-quit" style="background:var(--panel);color:var(--muted);border:1px solid var(--border)">退出</button>
+    </div>
+  </div>
+</div>
+
+<!-- Quit confirm -->
+<div id="quit-confirm">
+  <div class="quit-box">
+    <h3>确认退出？</h3>
+    <p>游戏进度将丢失</p>
+    <div style="display:flex;gap:12px;justify-content:center">
+      <button onclick="doQuit()" style="background:#e8735a;color:#fff">确认退出</button>
+      <button onclick="closeQuit()" style="background:var(--panel);color:var(--muted);border:1px solid var(--border)">取消</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+// responsive canvas
+function resizeCanvas() {
+  const maxW = Math.min(window.innerWidth - 24, 960);
+  const maxH = Math.min(window.innerHeight - 220, 680);
+  canvas.width  = maxW;
+  canvas.height = maxH;
+}
+resizeCanvas();
+window.addEventListener('resize', () => { resizeCanvas(); restartGame(); });
+
+const TYPES = ['rock','paper','scissors'];
+const EMOJI = { rock:'🪨', paper:'📄', scissors:'✂️' };
+const BEATS = { rock:'scissors', scissors:'paper', paper:'rock' }; // rock beats scissors, etc.
+const COLOR = { rock:'#e8735a', paper:'#5ab4e8', scissors:'#7ade8a' };
+const COUNT_PER_TYPE = 8;
+const RADIUS = 14;
+
+let entities = [];
+let animId = null;
+let gameOver = false;
+let speedMult = 1.2;
+
+const speedSlider = document.getElementById('speed-slider');
+const speedLabel  = document.getElementById('speed-label');
+speedSlider.addEventListener('input', () => {
+  speedMult = parseFloat(speedSlider.value);
+  speedLabel.textContent = speedMult.toFixed(1) + '×';
+});
+
+function randRange(a,b){ return a + Math.random()*(b-a); }
+
+function createEntity(type) {
+  const margin = RADIUS + 2;
+  const baseSpeed = randRange(1.2, 2.2);
+  const angle = Math.random() * Math.PI * 2;
+  return {
+    type,
+    x: randRange(margin, canvas.width  - margin),
+    y: randRange(margin, canvas.height - margin),
+    vx: Math.cos(angle) * baseSpeed,
+    vy: Math.sin(angle) * baseSpeed,
+    r: RADIUS,
+    flash: 0,        // frames to flash after conversion
+  };
+}
+
+function initEntities() {
+  entities = [];
+  TYPES.forEach(t => {
+    for(let i=0;i<COUNT_PER_TYPE;i++) entities.push(createEntity(t));
+  });
+}
+
+function updateScoreboard() {
+  const counts = { rock:0, paper:0, scissors:0 };
+  entities.forEach(e => counts[e.type]++);
+
+  ['rock','paper','scissors'].forEach(t => {
+    const el = document.getElementById(t+'-count');
+    const old = parseInt(el.textContent);
+    const nw  = counts[t];
+    el.textContent = nw;
+    if(nw !== old) {
+      el.classList.remove('bump');
+      void el.offsetWidth;
+      el.classList.add('bump');
+      setTimeout(()=>el.classList.remove('bump'),150);
+    }
+  });
+
+  return counts;
+}
+
+function checkWin(counts) {
+  let living = TYPES.filter(t => counts[t] > 0);
+  if(living.length === 1) return living[0];
+  return null;
+}
+
+function showWin(winner) {
+  gameOver = true;
+  const info = {
+    rock:    { icon:'🪨', name:'石头', color: '#e8735a' },
+    paper:   { icon:'📄', name:'布',   color: '#5ab4e8' },
+    scissors:{ icon:'✂️', name:'剪刀', color: '#7ade8a' },
+  };
+  const w = info[winner];
+  document.getElementById('win-icon').textContent  = w.icon;
+  document.getElementById('win-title').textContent = w.name + ' 统治全场！';
+  document.getElementById('win-title').style.color = w.color;
+  document.getElementById('win-sub').textContent   = '所有单位都已被传染，游戏结束。';
+  document.getElementById('overlay').classList.add('show');
+}
+
+// --- Physics ---
+function move(e) {
+  const s = speedMult;
+  e.x += e.vx * s;
+  e.y += e.vy * s;
+
+  const margin = e.r;
+  if(e.x - margin < 0) { e.x = margin; e.vx = Math.abs(e.vx); }
+  if(e.x + margin > canvas.width)  { e.x = canvas.width  - margin; e.vx = -Math.abs(e.vx); }
+  if(e.y - margin < 0) { e.y = margin; e.vy = Math.abs(e.vy); }
+  if(e.y + margin > canvas.height) { e.y = canvas.height - margin; e.vy = -Math.abs(e.vy); }
+}
+
+function resolveCollisions() {
+  const n = entities.length;
+  for(let i=0;i<n;i++) {
+    for(let j=i+1;j<n;j++) {
+      const a = entities[i], b = entities[j];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist2 = dx*dx + dy*dy;
+      const minDist = a.r + b.r;
+      if(dist2 > minDist * minDist) continue;
+
+      const dist = Math.sqrt(dist2) || 0.01;
+      // separate
+      const overlap = (minDist - dist) / 2;
+      const nx = dx/dist, ny = dy/dist;
+      a.x -= nx*overlap; a.y -= ny*overlap;
+      b.x += nx*overlap; b.y += ny*overlap;
+
+      // elastic bounce
+      const dvx = a.vx - b.vx, dvy = a.vy - b.vy;
+      const dot = dvx*nx + dvy*ny;
+      if(dot > 0) {
+        a.vx -= dot*nx; a.vy -= dot*ny;
+        b.vx += dot*nx; b.vy += dot*ny;
+      }
+
+      // infection
+      if(a.type !== b.type) {
+        if(BEATS[a.type] === b.type) {
+          b.type = a.type; b.flash = 12;
+        } else if(BEATS[b.type] === a.type) {
+          a.type = b.type; a.flash = 12;
+        }
+      }
+    }
+  }
+}
+
+// --- Render ---
+const fontCache = {};
+function drawEntity(e) {
+  ctx.save();
+  ctx.translate(e.x, e.y);
+
+  // glow
+  if(e.flash > 0) {
+    ctx.shadowColor = COLOR[e.type];
+    ctx.shadowBlur  = 18;
+    e.flash--;
+  } else {
+    ctx.shadowColor = COLOR[e.type];
+    ctx.shadowBlur  = 5;
+  }
+
+  // circle bg
+  ctx.beginPath();
+  ctx.arc(0,0,e.r,0,Math.PI*2);
+  ctx.fillStyle = COLOR[e.type] + '30';
+  ctx.fill();
+  ctx.strokeStyle = COLOR[e.type];
+  ctx.lineWidth = 1.8;
+  ctx.stroke();
+
+  // emoji
+  ctx.shadowBlur = 0;
+  ctx.font = `${e.r * 1.3}px serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(EMOJI[e.type], 0, 1);
+
+  ctx.restore();
+}
+
+function drawBackground() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // subtle grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+  ctx.lineWidth = 1;
+  for(let x=0;x<canvas.width;x+=40) {
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke();
+  }
+  for(let y=0;y<canvas.height;y+=40) {
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke();
+  }
+}
+
+// --- Game loop ---
+function gameLoop() {
+  if(gameOver) return;
+
+  drawBackground();
+  entities.forEach(move);
+  resolveCollisions();
+
+  entities.forEach(drawEntity);
+
+  const counts = updateScoreboard();
+  const winner = checkWin(counts);
+  if(winner) { showWin(winner); return; }
+
+  animId = requestAnimationFrame(gameLoop);
+}
+
+function restartGame() {
+  gameOver = false;
+  document.getElementById('overlay').classList.remove('show');
+  closeQuit();
+  if(animId) cancelAnimationFrame(animId);
+  initEntities();
+  updateScoreboard();
+  animId = requestAnimationFrame(gameLoop);
+}
+
+// Controls
+document.getElementById('btn-restart').addEventListener('click', restartGame);
+document.getElementById('btn-play-again').addEventListener('click', restartGame);
+
+document.getElementById('btn-quit').addEventListener('click', () => {
+  document.getElementById('quit-confirm').classList.add('show');
+});
+document.getElementById('btn-ov-quit').addEventListener('click', () => {
+  document.getElementById('quit-confirm').classList.add('show');
+});
+
+function doQuit() {
+  gameOver = true;
+  if(animId) cancelAnimationFrame(animId);
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('quit-confirm').classList.remove('show');
+  drawBackground();
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.font = 'bold 2rem Noto Sans SC, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('游戏已结束，点击「重新开始」继续', canvas.width/2, canvas.height/2);
+}
+
+function closeQuit() {
+  document.getElementById('quit-confirm').classList.remove('show');
+}
+
+// kick off
+restartGame();
+</script>
+</body>
+</html>
